@@ -70,12 +70,12 @@ interface LeadState {
 
 class NewState implements LeadState {
     public void next(Lead lead) { lead.setState(new QualifiedState()); }
-    public String getName() { return "NEW"; }
+    public String getName() { return "LEAD"; }
 }
 
 class QualifiedState implements LeadState {
     public void next(Lead lead) { lead.setState(new CustomerState()); }
-    public String getName() { return "QUALIFIED"; }
+    public String getName() { return "OPPORTUNITY"; }
 }
 
 class CustomerState implements LeadState {
@@ -300,6 +300,13 @@ public class CRMInfrastructure {
     public static void main(String[] args) {
 
         IDataAccess dao = DAOFactory.create();
+        ILeadServices leadServices = new LeadService();
+
+        if (args != null && args.length > 0 && "cli".equalsIgnoreCase(args[0])) {
+            LeadsManagementCLI cli = new LeadsManagementCLI(leadServices, new Scanner(System.in));
+            cli.run();
+            return;
+        }
         
         // Create ERP connector (adapter) with injected legacy system (SOLID DIP)
         IERPConnector erpConnector = new ERPAdapter(new LegacyERPSystem());
@@ -318,13 +325,18 @@ public class CRMInfrastructure {
         // Fetch
         service.getAll().forEach(System.out::println);
 
-        // State Pattern demo
-        Lead lead = new Lead();
-        System.out.println("State: " + lead.getStatus());
-        lead.nextState();
-        System.out.println("State: " + lead.getStatus());
-        lead.nextState();
-        System.out.println("State: " + lead.getStatus());
+        // Sales lead management + State Pattern demo (Lead -> Opportunity -> Customer)
+        System.out.println("\n--- Lead Management Demo ---");
+        try {
+            int leadId = leadServices.createLead("Contoso Ltd", "sales@contoso.com");
+            System.out.println("Created Lead #" + leadId + " with status=" + leadServices.getLeadStatus(leadId));
+            leadServices.advanceLeadStatus(leadId);
+            System.out.println("Updated Lead #" + leadId + " to status=" + leadServices.getLeadStatus(leadId));
+            leadServices.advanceLeadStatus(leadId);
+            System.out.println("Updated Lead #" + leadId + " to status=" + leadServices.getLeadStatus(leadId));
+        } catch (LeadNotFoundException e) {
+            System.err.println("Lead operation failed: " + e.getMessage());
+        }
         
         // Customer Management + ERP sync demo
         System.out.println("\n--- Customer Management Demo ---");
