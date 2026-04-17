@@ -155,24 +155,61 @@ interface IDataAccess {
 class InMemoryDataAccess implements IDataAccess {
 
     private final ConnectionPoolManager pool = ConnectionPoolManager.getInstance();
+    private static List<Map<String,Object>> customers = new ArrayList<>();
+    private static AtomicInteger customerIdCounter = new AtomicInteger(1);
 
     public int executeUpdate(String sql, Object... params) {
         String conn = pool.getConnection();
         try {
-            Map<String,Object> row = CentralDatabase.row(
-                "lead_id", params[0],
-                "customer_id", params[1],
-                "type", params[2]
-            );
-            CentralDatabase.interactions.add(row);
-            return 1;
+            if ("INSERT".equals(sql) || "INSERT_INTERACTION".equals(sql)) {
+                Map<String,Object> row = CentralDatabase.row(
+                    "lead_id", params[0],
+                    "customer_id", params[1],
+                    "type", params[2]
+                );
+                CentralDatabase.interactions.add(row);
+                return 1;
+            } else if ("INSERT_CUSTOMER".equals(sql)) {
+                int id = customerIdCounter.getAndIncrement();
+                Map<String,Object> row = CentralDatabase.row(
+                    "id", id,
+                    "name", params[0],
+                    "email", params[1]
+                );
+                customers.add(row);
+                return id;
+            } else if ("UPDATE_CUSTOMER".equals(sql)) {
+                Integer id = (Integer) params[0];
+                for (Map<String,Object> c : customers) {
+                    if (id.equals(c.get("id"))) {
+                        c.put("name", params[1]);
+                        c.put("email", params[2]);
+                        return 1;
+                    }
+                }
+                return 0;
+            } else if ("DELETE_CUSTOMER".equals(sql)) {
+                Integer id = (Integer) params[0];
+                return customers.removeIf(c -> id.equals(c.get("id"))) ? 1 : 0;
+            }
+            return 0;
         } finally {
             pool.releaseConnection(conn);
         }
     }
 
     public List<Map<String,Object>> executeQuery(String sql, Object... params) {
-        return new ArrayList<>(CentralDatabase.interactions);
+        if ("SELECT".equals(sql) || "SELECT_INTERACTIONS".equals(sql)) {
+            return new ArrayList<>(CentralDatabase.interactions);
+        } else if ("SELECT_CUSTOMERS".equals(sql)) {
+            return new ArrayList<>(customers);
+        } else if ("FIND_CUSTOMER_BY_ID".equals(sql)) {
+            Integer id = (Integer) params[0];
+            return customers.stream()
+                .filter(c -> id.equals(c.get("id")))
+                .collect(Collectors.toList());
+        }
+        return Collections.emptyList();
     }
 }
 
@@ -189,46 +226,38 @@ class DAOFactory {
 
 
 // ─────────────────────────────────────────────
-// ADAPTER PATTERN
-// ─────────────────────────────────────────────
-
-class ExternalERP {
-    public void send(String data) {
-        System.out.println("[ERP] " + data);
-    }
-}
-
-class ERPAdapter {
-    private final ExternalERP erp = new ExternalERP();
-
-    public void sendInteraction(Interaction i) {
-        String payload = "{id:" + i.getId() + ", type:" + i.getType() + "}";
-        erp.send(payload);
-    }
-}
-
-
-// ─────────────────────────────────────────────
 // SERVICE
 // ─────────────────────────────────────────────
 
 interface IInteractionServices {
-    void logInteraction(Interaction i);
+    void logInteraction(Interaction i) throws InvalidDataException;
     List<Interaction> getAll();
 }
 
+/**
+ * InteractionManager manages interaction logging and ERP sync.
+ * Follows SOLID Dependency Inversion: depends on IDataAccess and IERPConnector abstractions,
+ * injected via constructor (not created internally).
+ */
 class InteractionManager implements IInteractionServices {
 
     private final IDataAccess dao;
-    private final ERPAdapter adapter = new ERPAdapter();
+    private final IERPConnector erpConnector;
 
-    public InteractionManager(IDataAccess dao) {
+    /**
+     * Create an InteractionManager with injected dependencies.
+     * @param dao data access abstraction
+     * @param erpConnector ERP connector abstraction (the adapter)
+     */
+    public InteractionManager(IDataAccess dao, IERPConnector erpConnector) {
         this.dao = dao;
+        this.erpConnector = erpConnector;
     }
 
-    public void logInteraction(Interaction i) {
+    @Override
+    public void logInteraction(Interaction i) throws InvalidDataException {
         if (i.getLeadId() == null && i.getCustomerId() == null)
-            throw new RuntimeException("Invalid interaction");
+            throw new InvalidDataException("Invalid interaction: both lead_id and customer_id are null");
 
         dao.executeUpdate("INSERT",
                 i.getLeadId(),
@@ -236,9 +265,20 @@ class InteractionManager implements IInteractionServices {
                 i.getType()
         );
 
-        adapter.sendInteraction(i); // Adapter call
+        // Attempt ERP sync; log or handle ERPSyncException if needed
+        try {
+            if (i.getCustomerId() != null) {
+                // Only sync interactions that reference customers
+                // Note: In a real system, we'd fetch the Customer object here
+                erpConnector.syncCustomer(new Customer(i.getCustomerId(), "", ""));
+            }
+        } catch (ERPSyncException e) {
+            System.err.println("ERP sync warning (non-fatal): " + e.getMessage());
+            // In production, log or retry asynchronously
+        }
     }
 
+    @Override
     public List<Interaction> getAll() {
         return dao.executeQuery("SELECT").stream()
             .map(r -> new Interaction(
@@ -260,11 +300,20 @@ public class CRMInfrastructure {
     public static void main(String[] args) {
 
         IDataAccess dao = DAOFactory.create();
-        IInteractionServices service = new InteractionManager(dao);
+        
+        // Create ERP connector (adapter) with injected legacy system (SOLID DIP)
+        IERPConnector erpConnector = new ERPAdapter(new LegacyERPSystem());
+        
+        // Create service with injected DAO and ERP connector
+        IInteractionServices service = new InteractionManager(dao, erpConnector);
 
         // Logging
-        service.logInteraction(new Interaction(1, null, "call", "notes"));
-        service.logInteraction(new Interaction(1, 1, "meeting", "notes"));
+        try {
+            service.logInteraction(new Interaction(1, null, "call", "notes"));
+            service.logInteraction(new Interaction(1, 1, "meeting", "notes"));
+        } catch (InvalidDataException e) {
+            System.err.println("Invalid interaction: " + e.getMessage());
+        }
 
         // Fetch
         service.getAll().forEach(System.out::println);
@@ -276,5 +325,19 @@ public class CRMInfrastructure {
         System.out.println("State: " + lead.getStatus());
         lead.nextState();
         System.out.println("State: " + lead.getStatus());
+        
+        // Customer Management + ERP sync demo
+        System.out.println("\n--- Customer Management Demo ---");
+        try {
+            CustomerDAO custDao = new CustomerDAOInMemory();
+            CustomerService custService = new CustomerService(custDao, erpConnector);
+            
+            int newId = custService.createCustomer(new Customer(0, "Alice", "alice@example.com"));
+            Customer alice = custService.getCustomer(newId);
+            System.out.println("Created: " + alice);
+            custService.performERPSync(alice.getId());
+        } catch (CustomerNotFoundException | ERPSyncException e) {
+            System.err.println("Customer operation failed: " + e.getMessage());
+        }
     }
 }
