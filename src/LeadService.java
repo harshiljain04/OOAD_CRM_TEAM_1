@@ -9,13 +9,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class LeadService implements ILeadServices {
 
     private static class LeadRecord {
-        private final int id;
         private final String name;
         private final String email;
         private final Lead lead;
 
         LeadRecord(int id, String name, String email) {
-            this.id = id;
             this.name = name;
             this.email = email;
             this.lead = new Lead();
@@ -35,7 +33,15 @@ public class LeadService implements ILeadServices {
     @Override
     public void advanceLeadStatus(int leadId) throws LeadNotFoundException {
         LeadRecord record = getLeadRecordOrThrow(leadId);
+        String before = record.lead.getStatus();
         record.lead.nextState();
+        String after = record.lead.getStatus();
+
+        // Keep lead pipeline and customer data in sync for frontend demos.
+        if (!"CUSTOMER".equals(before) && "CUSTOMER".equals(after)) {
+            CustomerDAO customerDAO = new CustomerDAOInMemory();
+            customerDAO.create(new Customer(0, record.name, record.email));
+        }
     }
 
     @Override

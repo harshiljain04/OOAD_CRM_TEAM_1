@@ -45,6 +45,16 @@ class Interaction {
         this.timestamp = LocalDateTime.now();
     }
 
+    public Interaction(int id, Integer leadId, Integer customerId, String type, String notes, LocalDateTime timestamp) {
+        this.id = id;
+        this.leadId = leadId;
+        this.customerId = customerId;
+        this.type = type;
+        this.notes = notes;
+        this.timestamp = timestamp == null ? LocalDateTime.now() : timestamp;
+        counter.updateAndGet(current -> Math.max(current, id + 1));
+    }
+
     public int getId() { return id; }
     public Integer getLeadId() { return leadId; }
     public Integer getCustomerId() { return customerId; }
@@ -163,9 +173,12 @@ class InMemoryDataAccess implements IDataAccess {
         try {
             if ("INSERT".equals(sql) || "INSERT_INTERACTION".equals(sql)) {
                 Map<String,Object> row = CentralDatabase.row(
-                    "lead_id", params[0],
-                    "customer_id", params[1],
-                    "type", params[2]
+                    "id", params[0],
+                    "timestamp", params[1],
+                    "notes", params[2],
+                    "lead_id", params[3],
+                    "customer_id", params[4],
+                    "type", params[5]
                 );
                 CentralDatabase.interactions.add(row);
                 return 1;
@@ -260,6 +273,9 @@ class InteractionManager implements IInteractionServices {
             throw new InvalidDataException("Invalid interaction: both lead_id and customer_id are null");
 
         dao.executeUpdate("INSERT",
+            i.getId(),
+            i.getTimestamp(),
+            i.getNotes(),
                 i.getLeadId(),
                 i.getCustomerId(),
                 i.getType()
@@ -282,10 +298,12 @@ class InteractionManager implements IInteractionServices {
     public List<Interaction> getAll() {
         return dao.executeQuery("SELECT").stream()
             .map(r -> new Interaction(
+                (Integer)r.get("id"),
                 (Integer)r.get("lead_id"),
                 (Integer)r.get("customer_id"),
                 (String)r.get("type"),
-                ""
+                (String)r.get("notes"),
+                (LocalDateTime)r.get("timestamp")
             ))
             .collect(Collectors.toList());
     }
