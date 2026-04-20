@@ -1,0 +1,14 @@
+# macOS
+.DS_Store
+
+# Java build artifacts
+*.class
+bin/
+out/
+
+# Local runtime dependencies (download on demand)
+lib/*.jar
+
+# Local DB config with real credentials
+application-rds.properties
+DB_Integration/application-rds.properties

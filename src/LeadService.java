@@ -22,6 +22,15 @@ public class LeadService implements ILeadServices {
 
     private final AtomicInteger idCounter = new AtomicInteger(1);
     private final Map<Integer, LeadRecord> leads = new HashMap<>();
+    private final CustomerDAO customerDAO;
+
+    public LeadService() {
+        this(new CustomerDAOInMemory());
+    }
+
+    public LeadService(CustomerDAO customerDAO) {
+        this.customerDAO = customerDAO;
+    }
 
     @Override
     public int createLead(String name, String email) {
@@ -39,7 +48,6 @@ public class LeadService implements ILeadServices {
 
         // Keep lead pipeline and customer data in sync for frontend demos.
         if (!"CUSTOMER".equals(before) && "CUSTOMER".equals(after)) {
-            CustomerDAO customerDAO = new CustomerDAOInMemory();
             customerDAO.create(new Customer(0, record.name, record.email));
         }
     }

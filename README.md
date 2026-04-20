@@ -29,16 +29,53 @@ Runtime flow in web mode:
 
 ## 2) How to Run
 
+### 2.0 One-time SDK Dependencies
+
+The Integration SDK JAR depends on a few runtime libraries. Download them once:
+
+```bash
+mkdir -p lib
+curl -L -o lib/HikariCP-5.1.0.jar https://repo1.maven.org/maven2/com/zaxxer/HikariCP/5.1.0/HikariCP-5.1.0.jar
+curl -L -o lib/mysql-connector-j-9.3.0.jar https://repo1.maven.org/maven2/com/mysql/mysql-connector-j/9.3.0/mysql-connector-j-9.3.0.jar
+curl -L -o lib/slf4j-api-2.0.17.jar https://repo1.maven.org/maven2/org/slf4j/slf4j-api/2.0.17/slf4j-api-2.0.17.jar
+curl -L -o lib/slf4j-simple-2.0.17.jar https://repo1.maven.org/maven2/org/slf4j/slf4j-simple/2.0.17/slf4j-simple-2.0.17.jar
+```
+
+### 2.0.1 Secure RDS Config Setup
+
+Create a local config file with real credentials (do not commit it):
+
+```bash
+cp DB_Integration/application-rds-template.properties DB_Integration/application-rds.properties
+```
+
+Then edit `DB_Integration/application-rds.properties` with your environment values.
+The app resolves config in this order:
+
+1. `-Dcrm.rds.config=...`
+2. `CRM_RDS_CONFIG`
+3. `DB_Integration/application-rds.properties`
+4. `application-rds.properties`
+5. `DB_Integration/application-rds-template.properties`
+
 ### 2.1 Compile
 
 ```bash
-javac src/*.java
+javac -cp "src:DB_Integration/erp-subsystem-sdk-1.0.0.jar:lib/*" src/*.java
 ```
 
 ### 2.2 Run Web Frontend Demo
 
 ```bash
-java -cp src CRMWebServer
+java -cp "src:DB_Integration/erp-subsystem-sdk-1.0.0.jar:lib/*" CRMWebServer
+```
+
+Optional runtime overrides:
+
+```bash
+java -Dcrm.rds.config=DB_Integration/application-rds-template.properties \
+	-Dcrm.erp.username=integration_lead \
+	-cp "src:DB_Integration/erp-subsystem-sdk-1.0.0.jar:lib/*" CRMWebServer
 ```
 
 Open:

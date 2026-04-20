@@ -1,0 +1,9 @@
+{
+  "java.project.sourcePaths": [
+    "src"
+  ],
+  "java.project.referencedLibraries": [
+    "DB_Integration/erp-subsystem-sdk-1.0.0.jar",
+    "lib/**/*.jar"
+  ]
+}

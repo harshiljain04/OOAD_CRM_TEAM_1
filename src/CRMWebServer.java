@@ -29,11 +29,12 @@ public class CRMWebServer {
     private final IAnalyticsReports analyticsService;
 
     private CRMWebServer() {
+        CustomerDAO customerDAO = new CustomerDAOInMemory();
         IDataAccess dao = DAOFactory.create();
         IERPConnector erpConnector = new ERPAdapter(new LegacyERPSystem());
 
-        this.leadService = new LeadService();
-        this.customerService = new CustomerService(new CustomerDAOInMemory(), erpConnector);
+        this.leadService = new LeadService(customerDAO);
+        this.customerService = new CustomerService(customerDAO, erpConnector);
         this.interactionService = new InteractionManager(dao, erpConnector);
 
         CampaignManager campaignManager = new CampaignManager();
@@ -129,7 +130,7 @@ public class CRMWebServer {
 
                 case "/api/customers/list":
                     requireMethod(method, "GET");
-                    List<Customer> customers = new CustomerDAOInMemory().findAll();
+                    List<Customer> customers = customerService.listCustomers();
                     List<String> customerJson = new ArrayList<>();
                     for (Customer c : customers) {
                         customerJson.add(customerToJson(c));
