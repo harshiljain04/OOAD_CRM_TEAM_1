@@ -66,15 +66,7 @@ public class CRMWebServer {
             }
 
             if ("/".equals(path)) {
-                serveFile(exchange, "frontend/index.html", "text/html; charset=utf-8");
-                return;
-            }
-            if ("/styles.css".equals(path)) {
-                serveFile(exchange, "frontend/styles.css", "text/css; charset=utf-8");
-                return;
-            }
-            if ("/app.js".equals(path)) {
-                serveFile(exchange, "frontend/app.js", "application/javascript; charset=utf-8");
+                sendJson(exchange, 200, "{\"ok\":true,\"message\":\"Web UI removed. Launch Swing UI with: java -cp src CRMInfrastructure swing\"}");
                 return;
             }
 

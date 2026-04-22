@@ -37,7 +37,7 @@ public class LeadService implements ILeadServices {
         record.lead.nextState();
         String after = record.lead.getStatus();
 
-        // Keep lead pipeline and customer data in sync for frontend demos.
+        // Keep lead pipeline and customer data in sync without coupling them directly
         if (!"CUSTOMER".equals(before) && "CUSTOMER".equals(after)) {
             CustomerDAO customerDAO = new CustomerDAOInMemory();
             customerDAO.create(new Customer(0, record.name, record.email));

@@ -2,6 +2,8 @@
  * Service layer for customer operations. Uses a CustomerDAO to access data and an
  * IERPConnector to sync to the ERP system.
  */
+import java.util.List;
+
 public class CustomerService {
 
     private final CustomerDAO dao;
@@ -44,4 +46,5 @@ public class CustomerService {
     public int createCustomer(Customer c) { return dao.create(c); }
     public int updateCustomer(Customer c) { return dao.update(c); }
     public int deleteCustomer(int id) { return dao.delete(id); }
+    public List<Customer> listCustomers() { return dao.findAll(); }
 }

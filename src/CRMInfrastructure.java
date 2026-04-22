@@ -317,12 +317,23 @@ class InteractionManager implements IInteractionServices {
 public class CRMInfrastructure {
     public static void main(String[] args) {
 
+        if (args == null || args.length == 0 || "swing".equalsIgnoreCase(args[0])) {
+            CRMSwingFrontend.launch();
+            return;
+        }
+
         IDataAccess dao = DAOFactory.create();
         ILeadServices leadServices = new LeadService();
 
-        if (args != null && args.length > 0 && "cli".equalsIgnoreCase(args[0])) {
+        if ("cli".equalsIgnoreCase(args[0])) {
             LeadsManagementCLI cli = new LeadsManagementCLI(leadServices, new Scanner(System.in));
             cli.run();
+            return;
+        }
+
+        if (!"demo".equalsIgnoreCase(args[0])) {
+            System.out.println("Unknown mode: " + args[0]);
+            System.out.println("Usage: java -cp src CRMInfrastructure [swing|cli|demo]");
             return;
         }
         
